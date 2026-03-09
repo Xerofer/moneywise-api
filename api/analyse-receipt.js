@@ -2,8 +2,12 @@
 // Vercel serverless function — receives base64 image, calls Gemini, returns JSON
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-1.5-flash';
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MODELS = [
+  'gemini-2.0-flash',              // stable, has free tier
+  'gemini-2.5-flash-lite-preview', // newer free lite
+  'gemini-3-flash-preview',        // newest free
+];
+const BASE_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const CATEGORIES = [
   'Food','Groceries','Transport','Shopping','Health','Entertainment',
@@ -53,7 +57,11 @@ export default async function handler(req, res) {
   console.log('[Debug] Key length:', GEMINI_API_KEY.length);
 
   try {
-    const geminiRes = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    // Try each model until one works
+    let geminiRes, lastErr;
+    for (const model of MODELS) {
+      try {
+        geminiRes = await fetch(`${BASE_ENDPOINT}/${model}:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -67,11 +75,15 @@ export default async function handler(req, res) {
       }),
     });
 
-    if (!geminiRes.ok) {
-      const err = await geminiRes.json().catch(() => ({}));
-      return res.status(geminiRes.status).json({
-        error: err?.error?.message ?? `Gemini error ${geminiRes.status}`,
-      });
+        if (geminiRes.ok) break; // success — stop trying
+        lastErr = await geminiRes.json().catch(() => ({}));
+        console.log(`[Receipt] Model ${model} failed: ${geminiRes.status}`);
+      } catch(e) { lastErr = e; }
+    }
+
+    if (!geminiRes?.ok) {
+      const msg = lastErr?.error?.message ?? `Gemini error ${geminiRes?.status}`;
+      return res.status(500).json({ error: msg });
     }
 
     const data = await geminiRes.json();
