@@ -2,7 +2,7 @@
 // Vercel serverless function — receives base64 image, calls Gemini, returns JSON
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-1.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const CATEGORIES = [
@@ -48,6 +48,9 @@ export default async function handler(req, res) {
   if (!GEMINI_API_KEY) {
     return res.status(500).json({ error: 'API key not configured' });
   }
+
+  console.log('[Debug] Key prefix:', GEMINI_API_KEY.substring(0, 8));
+  console.log('[Debug] Key length:', GEMINI_API_KEY.length);
 
   try {
     const geminiRes = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
